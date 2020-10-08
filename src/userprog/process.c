@@ -226,7 +226,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  char *real_file_name = malloc(strlen(file_name) + 1);
+  strlcpy(real_file_name, file_name, strlen(file_name) + 1);
+  char *save_ptr;
+  real_file_name = strtok_r(real_file_name, " ", &save_ptr);
+  
+  file = filesys_open (real_file_name);
+  free(real_file_name);
+
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -451,19 +458,19 @@ setup_stack (void **esp,char * file_name)
   int i;
   int file_name_len=strlen(file_name);
 
-  enum intr_level old_level = intr_disable();
   //Calculate argc by checking space
   for(i=0;i<file_name_len;i++){
     if(file_name[i]==' ' && file_name[i-1]!=' ')
     argc++;
   }
-
+  printf("cal argc:%d\n",argc);
   //Split file_name and push them into stack
   char **argv = calloc(argc+1,sizeof(char*));
   for(token = strtok_r (file_name, " ", &save_ptr),i=0; token != NULL;token = strtok_r (NULL, " ", &save_ptr),i++){
     *esp-=(strlen(token) + 1);
     memcpy(*esp,token,strlen(token) + 1);
     argv[i]=*esp;
+    printf("%s\n",token);
   }
   argv[i]=(char*) 0;//null pointer
 
@@ -494,7 +501,6 @@ setup_stack (void **esp,char * file_name)
   memcpy(*esp,&argv[argc],sizeof(void*));
 
   free(argv);
-  intr_set_level (old_level);
   //
   //new lines ↑ 
   
