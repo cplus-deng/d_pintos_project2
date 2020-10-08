@@ -38,6 +38,10 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  //extract true file_name without argv
+  char *save_ptr;
+  file_name = strtok_r (file_name, " ", &save_ptr);
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
@@ -195,7 +199,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp,char * file_name);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -302,7 +306,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp,file_name))
     goto done;
 
   /* Start address. */
@@ -427,20 +431,73 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp,char * file_name) 
 {
   uint8_t *kpage;
   bool success = false;
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) 
-    {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE;
-      else
-        palloc_free_page (kpage);
-    }
+  if (kpage != NULL) {
+    success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+    if (success)
+      *esp = PHYS_BASE;
+    else
+      palloc_free_page (kpage);
+  }
+  //new lines ↓
+  //
+  char *token, *save_ptr;
+  int argc=1;
+  int i;
+  int file_name_len=strlen(file_name);
+
+  enum intr_level old_level = intr_disable();
+  //Calculate argc by checking space
+  for(i=0;i<file_name_len;i++){
+    if(file_name[i]==' ' && file_name[i-1]!=' ')
+    argc++;
+  }
+
+  //Split file_name and push them into stack
+  char **argv = calloc(argc+1,sizeof(char*));
+  for(token = strtok_r (file_name, " ", &save_ptr),i=0; token != NULL;token = strtok_r (NULL, " ", &save_ptr),i++){
+    *esp-=(strlen(token) + 1);
+    memcpy(*esp,token,strlen(token) + 1);
+    argv[i]=*esp;
+  }
+  argv[i]=(char*) 0;//null pointer
+
+  //word-align
+  i=(size_t)*esp % 4;
+  if(i){
+    *esp-=i;
+    memset(*esp, 0, i);
+  }
+
+  //push argv[]
+  for(i=argc;i>=0;i--){
+    *esp-=sizeof(char*);
+    memcpy(*esp,&argv[i],sizeof(char*));
+  }
+
+  //push argv
+  i=*esp;
+  *esp-=sizeof(char**);
+  memcpy(*esp,&i,sizeof(char**));
+
+  //push argc
+  *esp-=sizeof(int);
+  memcpy(*esp,&argc,sizeof(int));
+
+  //push fake return address
+  *esp-=sizeof(void*);
+  memcpy(*esp,&argv[argc],sizeof(void*));
+
+  free(argv);
+  intr_set_level (old_level);
+  //
+  //new lines ↑ 
+  
   return success;
 }
 
