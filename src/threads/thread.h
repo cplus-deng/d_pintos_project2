@@ -98,6 +98,15 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 
+
+    struct thread* parent;
+    struct thread* child_waiting;
+    struct semaphore* waiting_sema;
+    struct list_elem child_elem;
+    struct list children_list;
+    int exit_status;
+
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
@@ -137,5 +146,7 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+struct thread* find_child_thread(tid_t child_tid);
 
 #endif /* threads/thread.h */

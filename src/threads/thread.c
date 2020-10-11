@@ -189,6 +189,10 @@ thread_create (const char *name, int priority,
   kf->function = function;
   kf->aux = aux;
 
+#ifdef USERPROG
+  list_push_back (&running_thread()->children_list, &t->child_elem);
+#endif
+
   /* Stack frame for switch_entry(). */
   ef = alloc_frame (t, sizeof *ef);
   ef->eip = (void (*) (void)) kernel_thread;
@@ -281,7 +285,10 @@ void
 thread_exit (void) 
 {
   ASSERT (!intr_context ());
-
+  struct thread* current_thread=thread_current();
+  if (current_thread->parent->child_waiting != NULL && current_thread->parent->child_waiting->tid == current_thread->tid){
+    sema_up(current_thread->parent->waiting_sema);
+  }
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -464,6 +471,14 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
+#ifdef USERPROG
+  list_init (&t->children_list);
+  t->parent = running_thread();
+  t->child_waiting=NULL;
+  sema_init(t->waiting_sema,0);
+  t->exit_status = INIT_EXIT_STAT;
+#endif
+
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -582,3 +597,21 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+
+struct thread*
+find_child_thread(tid_t child_tid)
+{
+  ASSERT (intr_get_level () == INTR_OFF);
+#ifdef USERPROG
+  struct list *list=&thread_current()->children_list;
+  struct list_elem *tmp = list_begin (list);
+
+  for (tmp = list_begin (list);tmp != list_end (list);tmp = list_next (tmp)){
+    if(list_entry (tmp, struct thread, child_elem)->tid == child_tid){
+      return list_entry (tmp, struct thread, child_elem);
+    }
+  }
+#endif
+  return NULL;
+}
