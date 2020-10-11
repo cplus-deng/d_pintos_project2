@@ -98,8 +98,6 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
-
-
     struct thread* parent;
     struct thread* child_waiting;
     struct semaphore waiting_sema;

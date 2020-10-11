@@ -189,9 +189,7 @@ thread_create (const char *name, int priority,
   kf->function = function;
   kf->aux = aux;
 
-#ifdef USERPROG
   list_push_back (&running_thread()->children_list, &t->child_elem);
-#endif
 
   /* Stack frame for switch_entry(). */
   ef = alloc_frame (t, sizeof *ef);
@@ -600,8 +598,6 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 struct thread*
 find_child_thread(tid_t child_tid)
 {
-  ASSERT (intr_get_level () == INTR_OFF);
-
   struct list *list=&thread_current()->children_list;
   struct list_elem *tmp = list_begin (list);
 

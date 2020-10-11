@@ -90,11 +90,12 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
   struct thread *current_thread = thread_current ();
-
+  enum intr_level old_level = intr_disable();
   struct thread *child_thread= find_child_thread(child_tid);
+  intr_set_level (old_level);
 
   if(!child_thread)
     return -1;
@@ -461,7 +462,7 @@ setup_stack (void **esp,char * file_name)
   if (kpage != NULL) {
     success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
     if (success)
-      *esp = PHYS_BASE;
+      *esp = PHYS_BASE-12;
     else
       palloc_free_page (kpage);
   }
@@ -477,14 +478,12 @@ setup_stack (void **esp,char * file_name)
     if(file_name[i]==' ' && file_name[i-1]!=' ')
     argc++;
   }
-  printf("cal argc:%d\n",argc);
   //Split file_name and push them into stack
   char **argv = calloc(argc+1,sizeof(char*));
   for(token = strtok_r (file_name, " ", &save_ptr),i=0; token != NULL;token = strtok_r (NULL, " ", &save_ptr),i++){
     *esp-=(strlen(token) + 1);
     memcpy(*esp,token,strlen(token) + 1);
     argv[i]=*esp;
-    printf("%s\n",token);
   }
   argv[i]=(char*) 0;//null pointer
 
