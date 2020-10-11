@@ -287,7 +287,7 @@ thread_exit (void)
   ASSERT (!intr_context ());
   struct thread* current_thread=thread_current();
   if (current_thread->parent->child_waiting != NULL && current_thread->parent->child_waiting->tid == current_thread->tid){
-    sema_up(current_thread->parent->waiting_sema);
+    sema_up(&current_thread->parent->waiting_sema);
   }
 #ifdef USERPROG
   process_exit ();
@@ -471,12 +471,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-#ifdef USERPROG
   list_init (&t->children_list);
   t->parent = running_thread();
   t->child_waiting=NULL;
-  sema_init(t->waiting_sema,0);
-#endif
+  sema_init(&t->waiting_sema,0);
+
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -602,7 +601,7 @@ struct thread*
 find_child_thread(tid_t child_tid)
 {
   ASSERT (intr_get_level () == INTR_OFF);
-#ifdef USERPROG
+
   struct list *list=&thread_current()->children_list;
   struct list_elem *tmp = list_begin (list);
 
@@ -611,6 +610,6 @@ find_child_thread(tid_t child_tid)
       return list_entry (tmp, struct thread, child_elem);
     }
   }
-#endif
+
   return NULL;
 }

@@ -102,7 +102,7 @@ process_wait (tid_t child_tid UNUSED)
   current_thread->child_waiting = child_thread;
   //current_thread->waiting_child = ch;
 
-  sema_down(current_thread->waiting_sema);
+  sema_down(&current_thread->waiting_sema);
 
   list_remove(&child_thread->child_elem);
 

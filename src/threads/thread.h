@@ -102,7 +102,7 @@ struct thread
 
     struct thread* parent;
     struct thread* child_waiting;
-    struct semaphore* waiting_sema;
+    struct semaphore waiting_sema;
     struct list_elem child_elem;
     struct list children_list;
     int exit_status;
