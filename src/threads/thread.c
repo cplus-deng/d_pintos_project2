@@ -475,8 +475,7 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init (&t->children_list);
   t->parent = running_thread();
   t->child_waiting=NULL;
-  sema_init(t->waiting_sema,0);
-  t->exit_status = INIT_EXIT_STAT;
+  sema_init(&t->waiting_sema,0);
 #endif
 
   old_level = intr_disable ();
