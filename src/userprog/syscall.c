@@ -8,13 +8,16 @@
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "userprog/pagedir.h"
+#include "threads/synch.h"
 
 static void syscall_handler (struct intr_frame *);
+struct lock file_lock;
 
 void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init(&file_lock);
 }
 
 static void
@@ -86,11 +89,11 @@ void exit (int status){
 }
 
 pid_t exec (const char *file){
-
+  return process_execute(file);
 }
 
 int wait (pid_t pid){
-
+  return process_wait(pid);
 }
 
 bool create (const char *file, unsigned initial_size){
@@ -206,12 +209,19 @@ void syscall_exec (struct intr_frame* f){
   if(!is_valid_buffer(f->esp+4,4)){
     exit(-1);
   }
+  char *cmd_line = *(char **)(f->esp+4);
+  if(!is_valid_string(cmd_line)){
+    exit(-1);
+  }
+  f->eax = exec(cmd_line);
 }
 
 void syscall_wait (struct intr_frame* f){
   if(!is_valid_buffer(f->esp+4,4)){
     exit(-1);
   }
+  pid_t pid = *(int *)(f->esp+4);
+  f->eax = wait(pid);
 }
 
 void syscall_create (struct intr_frame* f){
@@ -224,19 +234,35 @@ void syscall_create (struct intr_frame* f){
     exit(-1);
   }
   unsigned size = *(int *)(f->esp+8);
+  lock_acquire(&file_lock);
   f->eax = create(file_name,size);
+  lock_release(&file_lock);
 }
 
 void syscall_remove (struct intr_frame* f){
   if(!is_valid_buffer(f->esp+4,4)){
     exit(-1);
   }
+  char* file_name = *(char **)(f->esp+4);
+  if(!is_valid_string(file_name)){
+    exit(-1);
+  }
+  lock_acquire(&file_lock);
+  f->eax = remove(file_name);
+  lock_release(&file_lock);
 }
 
 void syscall_open (struct intr_frame* f){
   if(!is_valid_buffer(f->esp+4,4)){
     exit(-1);
   }
+  char* file_name = *(char **)(f->esp+4);
+  if(!is_valid_string(file_name)){
+    exit(-1);
+  }
+  lock_acquire(&file_lock);
+  f->eax = open(file_name);
+  lock_release(&file_lock);
 }
 
 void syscall_filesize (struct intr_frame* f){
@@ -244,7 +270,9 @@ void syscall_filesize (struct intr_frame* f){
     exit(-1);
   }
   int fd = *(int *)(f->esp + 4);
+  lock_acquire(&file_lock);
   f->eax = filesize(fd);
+  lock_release(&file_lock);
 }
 
 void syscall_read (struct intr_frame* f){
@@ -258,7 +286,9 @@ void syscall_read (struct intr_frame* f){
   if(!is_valid_buffer(buffer,size)){
     exit(-1);
   }
+  lock_acquire(&file_lock);
   f->eax = read(fd,buffer,size);
+  lock_release(&file_lock);
 }
 
 void syscall_write (struct intr_frame* f){
@@ -272,8 +302,9 @@ void syscall_write (struct intr_frame* f){
   if(!is_valid_buffer(buffer,size)){
     exit(-1);
   }
-
+  lock_acquire(&file_lock);
   f->eax=write(fd,buffer,size);
+  lock_release(&file_lock);
 }
 
 void syscall_seek (struct intr_frame* f){
@@ -282,7 +313,9 @@ void syscall_seek (struct intr_frame* f){
   }
   int fd = *(int *)(f->esp + 4);
   unsigned pos = *(unsigned *)(f->esp + 8);
+  lock_acquire(&file_lock);
   seek(fd,pos);
+  lock_release(&file_lock);
 }
 
 void syscall_tell (struct intr_frame* f){
@@ -290,7 +323,9 @@ void syscall_tell (struct intr_frame* f){
     exit(-1);
   }
   int fd = *(int *)(f->esp +4);
+  lock_acquire(&file_lock);
   f->eax =tell(fd);
+  lock_release(&file_lock);
 }
 
 void syscall_close (struct intr_frame* f){
@@ -298,7 +333,9 @@ void syscall_close (struct intr_frame* f){
     exit(-1);
   }
   int fd = *(int *)(f->esp +4);
+  lock_acquire(&file_lock);
   close(fd);
+  lock_release(&file_lock);
 }
 
 
@@ -333,4 +370,44 @@ is_valid_buffer (void *vaddr, unsigned size)
     }
   }
   return true;
+}
+
+bool 
+is_valid_string(void *str){
+  int ch=-1;
+  while(1){
+    ch=get_user((uint8_t*)str);
+    if(ch==-1||ch=='\0')
+      break;
+    str++;
+  }
+  if(ch=='\0')
+    return true;
+  else
+    return false;
+}
+	
+/* Reads a byte at user virtual address UADDR.
+   UADDR must be below PHYS_BASE.
+   Returns the byte value if successful, -1 if a segfault
+   occurred. */
+static int
+get_user (const uint8_t *uaddr)
+{
+  int result;
+  asm ("movl $1f, %0; movzbl %1, %0; 1:"
+       : "=&a" (result) : "m" (*uaddr));
+  return result;
+}
+ 
+/* Writes BYTE to user address UDST.
+   UDST must be below PHYS_BASE.
+   Returns true if successful, false if a segfault occurred. */
+static bool
+put_user (uint8_t *udst, uint8_t byte)
+{
+  int error_code;
+  asm ("movl $1f, %0; movb %b2, %1; 1:"
+       : "=&a" (error_code), "=m" (*udst) : "q" (byte));
+  return error_code != -1;
 }
