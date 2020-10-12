@@ -21,7 +21,7 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *f ) 
+syscall_handler (struct intr_frame *f) 
 {
   if(!is_valid_addr(f->esp)){
     exit(-1);
