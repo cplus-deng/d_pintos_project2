@@ -1,8 +1,10 @@
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
-
+#include "threads/interrupt.h"
 #include <stdbool.h>
 #include <debug.h>
+#include <list.h>
+#include "filesys/file.h"
 /* Process identifier. */
 typedef int pid_t;
 #define PID_ERROR ((pid_t) -1)
@@ -41,7 +43,7 @@ int write (int fd, const void *buffer, unsigned length);
 void seek (int fd, unsigned position);
 unsigned tell (int fd);
 void close (int fd);
-
+/*
 void syscall_halt (struct intr_frame* f);
 void syscall_exit (struct intr_frame* f);
 void syscall_exec (struct intr_frame* f);
@@ -55,8 +57,9 @@ void syscall_write (struct intr_frame* f);
 void syscall_seek (struct intr_frame* f);
 void syscall_tell (struct intr_frame* f);
 void syscall_close (struct intr_frame* f);
-
+*/
 struct file* get_file_by_fd(int fd);
 bool is_valid_addr(const void *vaddr);
+bool is_valid_buffer (void *vaddr, unsigned size);
 
 #endif /* userprog/syscall.h */

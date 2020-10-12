@@ -20,7 +20,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f ) 
 {
-  if(!is_valid_pointer(f->esp)){
+  if(!is_valid_addr(f->esp)){
     exit(-1);
     return;
   }
@@ -73,7 +73,17 @@ syscall_handler (struct intr_frame *f )
 }
 
 void exit (int status){
+  struct thread *current_thread=thread_current ();
+  struct list_elem *l;
 
+  while (!list_empty (&current_thread->file_list))
+    {
+      l = list_begin (&current_thread->file_list);
+      close (list_entry (l, struct process_file,elem)->fd);
+    }
+
+  current_thread->exit_status = status;
+  thread_exit ();
 }
 pid_t exec (const char *file){
 
@@ -125,7 +135,11 @@ void syscall_halt (struct intr_frame* f){
   shutdown_power_off();
 }
 void syscall_exit (struct intr_frame* f){
-
+  if(!is_valid_addr(f->esp+4)){
+    exit(-1);
+  }
+  int status = *(int *)(f->esp +4);
+  exit(status);
 }
 void syscall_exec (struct intr_frame* f){
 
@@ -149,13 +163,14 @@ void syscall_read (struct intr_frame* f){
 
 }
 void syscall_write (struct intr_frame* f){
-  if(!is_valid_pointer(f->esp+4)){
+  if(!is_valid_addr(f->esp+4)){
     exit(-1);
   }
   int fd = *(int *)(f->esp +4);
   void *buffer = *(char**)(f->esp + 8);
   unsigned size = *(unsigned *)(f->esp + 12);
-  if(!is_valid_pointer(buffer)){
+
+  if(!is_valid_buffer(buffer,size)){
     exit(-1);
   }
 
@@ -196,4 +211,17 @@ is_valid_addr(const void *vaddr){
 		return false;
 	}
 	return true;
+}
+
+bool
+is_valid_buffer (void *vaddr, unsigned size)
+{
+  unsigned i;
+  char* tmp=vaddr;
+  for (i = 0; i < size; i++){
+    if(!is_valid_addr(tmp+i)){
+      return false;
+    }
+  }
+  return true;
 }
