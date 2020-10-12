@@ -7,6 +7,7 @@
 #include "userprog/process.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -17,39 +18,85 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f ) 
 {
-  printf ("system call!\n");
-  thread_exit ();
+  if(!is_valid_pointer(f->esp)){
+    exit(-1);
+    return;
+  }
+  int syscall_number = * (int *)f->esp;
+
+  switch(syscall_number){
+    case SYS_HALT:
+      syscall_halt(f);  
+      break;
+    case SYS_EXIT:
+      syscall_exit(f);  
+      break;
+    case SYS_EXEC:
+      syscall_exec(f);     
+      break;
+    case SYS_WAIT:
+      syscall_wait(f);   
+      break;
+    case SYS_CREATE:
+      syscall_create(f);   
+      break;
+    case SYS_REMOVE:
+      syscall_remove(f); 
+      break;
+    case SYS_OPEN:
+      syscall_open(f); 
+      break;
+    case SYS_FILESIZE:
+      syscall_filesize(f); 
+      break;
+    case SYS_READ:
+      syscall_read(f); 
+      break;
+    case SYS_WRITE:
+      syscall_write(f);  
+      break;
+    case SYS_SEEK:
+      syscall_seek(f);  
+      break;
+    case SYS_TELL:
+      syscall_tell(f);   
+      break;
+    case SYS_CLOSE:
+      syscall_close(f); 
+      break;
+
+    default:
+      exit(-1);
+  }
 }
-void syscall_halt (void){
-  shutdown_power_off();
-}
-void syscall_exit (int status){
+
+void exit (int status){
 
 }
-pid_t syscall_exec (const char *file){
+pid_t exec (const char *file){
 
 }
-int syscall_wait (pid_t pid){
+int wait (pid_t pid){
 
 }
-bool syscall_create (const char *file, unsigned initial_size){
+bool create (const char *file, unsigned initial_size){
 
 }
-bool syscall_remove (const char *file){
+bool remove (const char *file){
 
 }
-int syscall_open (const char *file){
+int open (const char *file){
 
 }
-int syscall_filesize (int fd){
+int filesize (int fd){
 
 }
-int syscall_read (int fd, void *buffer, unsigned length){
+int read (int fd, void *buffer, unsigned length){
 
 }
-int syscall_write (int fd, const void *buffer, unsigned length){
+int write (int fd, const void *buffer, unsigned length){
   if(fd==STDOUT){
     putbuf(buffer,length);
     return length;
@@ -62,15 +109,75 @@ int syscall_write (int fd, const void *buffer, unsigned length){
 
   }
 }
-void syscall_seek (int fd, unsigned position){
+void seek (int fd, unsigned position){
 
 }
-unsigned syscall_tell (int fd){
+unsigned tell (int fd){
 
 }
-void syscall_close (int fd){
+void close (int fd){
 
 }
+
+
+
+void syscall_halt (struct intr_frame* f){
+  shutdown_power_off();
+}
+void syscall_exit (struct intr_frame* f){
+
+}
+void syscall_exec (struct intr_frame* f){
+
+}
+void syscall_wait (struct intr_frame* f){
+
+}
+void syscall_create (struct intr_frame* f){
+
+}
+void syscall_remove (struct intr_frame* f){
+
+}
+void syscall_open (struct intr_frame* f){
+
+}
+void syscall_filesize (struct intr_frame* f){
+
+}
+void syscall_read (struct intr_frame* f){
+
+}
+void syscall_write (struct intr_frame* f){
+  if(!is_valid_pointer(f->esp+4)){
+    exit(-1);
+  }
+  int fd = *(int *)(f->esp +4);
+  void *buffer = *(char**)(f->esp + 8);
+  unsigned size = *(unsigned *)(f->esp + 12);
+  if(!is_valid_pointer(buffer)){
+    exit(-1);
+  }
+
+  f->eax=write(fd,buffer,size);
+  return;
+}
+void syscall_seek (struct intr_frame* f){
+
+}
+void syscall_tell (struct intr_frame* f){
+
+}
+void syscall_close (struct intr_frame* f){
+
+}
+
+
+
+
+
+
+
 
 struct file*
 get_file_by_fd(int fd){
@@ -81,4 +188,12 @@ get_file_by_fd(int fd){
       return list_entry (tmp, struct process_file, elem)->file;
   }
   return NULL;
+}
+
+bool
+is_valid_addr(const void *vaddr){
+	if (!is_user_vaddr(vaddr) || !(pagedir_get_page(thread_current()->pagedir, vaddr))){
+		return false;
+	}
+	return true;
 }

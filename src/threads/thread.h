@@ -105,6 +105,11 @@ struct thread
     struct list children_list;
     int exit_status;
 
+    int file_open;
+    int max_fd;
+    struct list file_list;
+
+
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
