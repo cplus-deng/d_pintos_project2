@@ -58,7 +58,7 @@ void syscall_seek (struct intr_frame* f);
 void syscall_tell (struct intr_frame* f);
 void syscall_close (struct intr_frame* f);
 */
-struct file* get_file_by_fd(int fd);
+struct process_file* get_process_file_by_fd(int fd);
 bool is_valid_addr(const void *vaddr);
 bool is_valid_buffer (void *vaddr, unsigned size);
 
