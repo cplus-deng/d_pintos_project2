@@ -108,6 +108,7 @@ struct thread
     int file_open;
     int max_fd;
     struct list file_list;
+    struct file* executable_file;
 
 
 

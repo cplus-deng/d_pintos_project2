@@ -121,6 +121,8 @@ process_exit (void)
      to the kernel-only page directory. */
   printf ("%s: exit(%d)\n", cur->name,cur->exit_status);
   pd = cur->pagedir;
+  file_allow_write(cur->executable_file);
+  file_close(cur->executable_file);
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
@@ -338,8 +340,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
   success = true;
 
  done:
-  /* We arrive here whether the load is successful or not. */
-  file_close (file);
+ /* We arrive here whether the load is successful or not. */
+  if(success){
+    t->executable_file = file;
+    file_deny_write(file);
+  }
+  else{
+    file_close (file);
+  }
   return success;
 }
 
