@@ -23,7 +23,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  if(!is_valid_addr(f->esp)){
+  if(!is_valid_buffer(f->esp,4)){
     exit(-1);
     return;
   }
@@ -79,6 +79,9 @@ void exit (int status){
   struct thread *current_thread=thread_current ();
   struct list_elem *l;
 
+  if(lock_held_by_current_thread(&file_lock))
+    lock_release(&file_lock);
+
   while (!list_empty (&current_thread->file_list)){
     l = list_begin (&current_thread->file_list);
     close (list_entry (l, struct process_file,elem)->fd);
@@ -124,11 +127,11 @@ int open (const char *file){
 }
 
 int filesize (int fd){
-  struct file *f = get_process_file_by_fd(fd)->file;
+  struct process_file *f = get_process_file_by_fd(fd);
   if(f == NULL){
     exit(-1);
   }
-  return file_length(f);
+  return file_length(f->file);
 
 }
 
@@ -140,12 +143,15 @@ int read (int fd, void *buffer, unsigned length){
     }
     return length;
   }
+  else if(fd==STDOUT){
+    exit(-1);
+  }
   else{
-    struct file *f = get_process_file_by_fd(fd)->file;
+    struct process_file *f = get_process_file_by_fd(fd);
     if(f == NULL){
       exit(-1);
     }
-    return (int) file_read(f,buffer,length);
+    return (int) file_read(f->file,buffer,length);
   }
 }
 
@@ -153,29 +159,33 @@ int write (int fd, const void *buffer, unsigned length){
   if(fd==STDOUT){
     putbuf(buffer,length);
     return length;
-  }else{
-    struct file *f = get_process_file_by_fd(fd)->file;
+  }
+  else if(fd==STDIN){
+    exit(-1);
+  }
+  else{
+    struct process_file *f = get_process_file_by_fd(fd);
     if(f==NULL){
       exit(-1);
     }
-    return (int) file_write(f,buffer,length);
+    return (int) file_write(f->file,buffer,length);
   }
 }
 
 void seek (int fd, unsigned position){
-  struct file *f = get_process_file_by_fd(fd)->file;
+  struct process_file *f = get_process_file_by_fd(fd);
   if(f == NULL){
     exit(-1);
   }
-  file_seek(f,position);
+  file_seek(f->file,position);
 }
 
 unsigned tell (int fd){
-  struct file *f = get_process_file_by_fd(fd)->file;
+  struct process_file *f = get_process_file_by_fd(fd);
   if(f == NULL){
     exit(-1);
   }
-  return (unsigned) file_tell(f);
+  return (unsigned) file_tell(f->file);
 }
 
 void close (int fd){
@@ -187,6 +197,7 @@ void close (int fd){
 
   file_close (pf->file);
   list_remove (&pf->elem);
+  thread_current()->file_open--;
   free (pf);
 }
 
@@ -200,7 +211,6 @@ void syscall_exit (struct intr_frame* f){
   if(!is_valid_buffer(f->esp+4,4)){
     exit(-1);
   }
-
   int status = *(int *)(f->esp +4);
   exit(status);
 }
@@ -210,7 +220,7 @@ void syscall_exec (struct intr_frame* f){
     exit(-1);
   }
   char *cmd_line = *(char **)(f->esp+4);
-  if(!is_valid_string(cmd_line)){
+  if(cmd_line==NULL || !is_valid_addr(cmd_line) || !is_valid_string(cmd_line)){
     exit(-1);
   }
   f->eax = exec(cmd_line);
@@ -225,14 +235,16 @@ void syscall_wait (struct intr_frame* f){
 }
 
 void syscall_create (struct intr_frame* f){
+  //printf("--------start syscall_creat--------\n");
   if(!is_valid_buffer(f->esp+4,8)){
     exit(-1);
   }
-
+  //printf("--------esp valid--------\n");
   char* file_name = *(char **)(f->esp+4);
-  if(!is_valid_string(file_name)){
+  if(file_name==NULL || !is_valid_addr(file_name) || !is_valid_string(file_name)){
     exit(-1);
   }
+  //printf("--------file_name valid--------\n");
   unsigned size = *(int *)(f->esp+8);
   lock_acquire(&file_lock);
   f->eax = create(file_name,size);
@@ -244,7 +256,7 @@ void syscall_remove (struct intr_frame* f){
     exit(-1);
   }
   char* file_name = *(char **)(f->esp+4);
-  if(!is_valid_string(file_name)){
+  if(file_name==NULL || !is_valid_addr(file_name) || !is_valid_string(file_name)){
     exit(-1);
   }
   lock_acquire(&file_lock);
@@ -257,7 +269,7 @@ void syscall_open (struct intr_frame* f){
     exit(-1);
   }
   char* file_name = *(char **)(f->esp+4);
-  if(!is_valid_string(file_name)){
+  if(file_name==NULL || !is_valid_addr(file_name) || !is_valid_string(file_name)){
     exit(-1);
   }
   lock_acquire(&file_lock);
@@ -365,9 +377,10 @@ is_valid_buffer (void *vaddr, unsigned size)
   unsigned i;
   char* tmp=vaddr;
   for (i = 0; i < size; i++){
-    if(!is_valid_addr(tmp+i)){
+    if(!is_valid_addr(tmp)){
       return false;
     }
+    tmp++;
   }
   return true;
 }
@@ -375,11 +388,12 @@ is_valid_buffer (void *vaddr, unsigned size)
 bool 
 is_valid_string(void *str){
   int ch=-1;
+  char* tmp=str;
   while(1){
-    ch=get_user((uint8_t*)str);
+    ch=get_user((uint8_t*)tmp);
     if(ch==-1||ch=='\0')
       break;
-    str++;
+    tmp++;
   }
   if(ch=='\0')
     return true;
