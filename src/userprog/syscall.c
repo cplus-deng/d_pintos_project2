@@ -108,8 +108,6 @@ void exit (int status){
     tes=list_entry (tmp, struct thread_exit_status,child_elem);
     free(tes);
   }
-
-
   thread_exit ();
 }
 

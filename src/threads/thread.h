@@ -106,6 +106,7 @@ struct thread
 
     tid_t waiting_tid;
     struct semaphore waiting_sema;
+    bool being_waited;
 
     int file_open;
     int max_fd;
@@ -161,6 +162,6 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 struct thread* find_alive_child_thread(tid_t child_tid);
-struct thread* find_dead_child_thread(tid_t child_tid);
+struct thread_exit_status* find_dead_child_thread(tid_t child_tid);
 
 #endif /* threads/thread.h */

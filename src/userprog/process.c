@@ -104,6 +104,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid) 
 {
+  int ret=-1;
   struct thread *current_thread = thread_current ();
   enum intr_level old_level = intr_disable();
   struct thread_exit_status *dead_thread=find_dead_child_thread(child_tid);
@@ -112,27 +113,32 @@ process_wait (tid_t child_tid)
 
   if(dead_thread!=NULL){
     list_remove(&dead_thread->child_elem);
-    return ;
+    ret=dead_thread->exit_status;
+    free(dead_thread);
+    return ret;
   }
 
-  if(!child_thread)
+  if(alive_child_thread!=NULL)
     return -1;
 
   current_thread->waiting_tid = child_tid;
-
-  list_remove(&child_thread->child_elem);
   sema_down(&current_thread->waiting_sema);
 
-  
+  dead_thread=find_dead_child_thread(child_tid);
+  if(dead_thread==NULL)
+    return -1;
 
-  return child_thread->exit_status;
+  list_remove(&dead_thread->child_elem);
+  ret=dead_thread->exit_status;
+  free(dead_thread);
+  return ret;
 }
 
 /* Free the current process's resources. */
 void
 process_exit (void)
 {
-  struct thread *cur = thread_current ();
+  struct thread *current_thread = thread_current ();
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
