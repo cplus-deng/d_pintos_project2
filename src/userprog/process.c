@@ -145,7 +145,9 @@ process_exit (void)
      to the kernel-only page directory. */
   printf ("%s: exit(%d)\n", current_thread->name,current_thread->exit_status);
   pd = current_thread->pagedir;
-  
+  if (current_thread->parent!=NULL && current_thread->parent->waiting_tid == current_thread->tid){
+    sema_up(&current_thread->parent->waiting_sema);
+  }
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set

@@ -83,8 +83,7 @@ void exit (int status){
 
   if(lock_held_by_current_thread(&file_lock))
     lock_release(&file_lock);
-  //printf("%X\n",list_prev(list_end (&current_thread->file_list)));
-  //printf("%X\n",list_next(list_prev(list_end (&current_thread->file_list))));
+  
   for (tmp = list_begin (&current_thread->file_list); tmp != list_end (&current_thread->file_list); tmp = list_begin (&current_thread->file_list))
     close (list_entry (tmp, struct process_file,elem)->fd);
   if(current_thread->executable_file!=NULL)
@@ -108,10 +107,9 @@ void exit (int status){
     tes=list_entry (tmp, struct thread_exit_status,child_elem);
     free(tes);
   }
-  if (current_thread->parent!=NULL && current_thread->parent->waiting_tid == current_thread->tid){
-    sema_up(&current_thread->parent->waiting_sema);
-  }
+  
   thread_exit ();
+  
 }
 
 pid_t exec (const char *file){
