@@ -83,16 +83,16 @@ void exit (int status){
 
   if(lock_held_by_current_thread(&file_lock))
     lock_release(&file_lock);
-
-  for (tmp = list_begin (&current_thread->file_list); tmp != list_end (&current_thread->file_list); tmp = list_next (tmp))
+  //printf("%X\n",list_prev(list_end (&current_thread->file_list)));
+  //printf("%X\n",list_next(list_prev(list_end (&current_thread->file_list))));
+  for (tmp = list_begin (&current_thread->file_list); tmp != list_end (&current_thread->file_list); tmp = list_begin (&current_thread->file_list))
     close (list_entry (tmp, struct process_file,elem)->fd);
-
-  
-  file_close(current_thread->executable_file);
+  if(current_thread->executable_file!=NULL)
+    file_close(current_thread->executable_file);
   current_thread->executable_file=NULL;
 
   current_thread->exit_status = status;
-
+  
   if(current_thread->parent!=NULL){
     struct thread_exit_status* cur_exit_status=(struct thread_exit_status*)malloc(sizeof(struct thread_exit_status));
     cur_exit_status->tid=current_thread->tid;
@@ -107,6 +107,9 @@ void exit (int status){
   for (tmp = list_begin (&current_thread->dead_children_list); tmp != list_end (&current_thread->dead_children_list); tmp = list_next (tmp)){
     tes=list_entry (tmp, struct thread_exit_status,child_elem);
     free(tes);
+  }
+  if (current_thread->parent!=NULL && current_thread->parent->waiting_tid == current_thread->tid){
+    sema_up(&current_thread->parent->waiting_sema);
   }
   thread_exit ();
 }
@@ -209,12 +212,13 @@ unsigned tell (int fd){
 }
 
 void close (int fd){
+  
   struct process_file *pf = get_process_file_by_fd(fd);
 
   if(pf == NULL||pf->file==NULL){
     exit(-1);
   }
-
+  
   file_close (pf->file);
   list_remove (&pf->elem);
   thread_current()->file_open--;
@@ -365,6 +369,7 @@ void syscall_close (struct intr_frame* f){
   lock_acquire(&file_lock);
   close(fd);
   lock_release(&file_lock);
+  
 }
 
 

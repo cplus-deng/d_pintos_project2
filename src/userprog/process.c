@@ -118,7 +118,7 @@ process_wait (tid_t child_tid)
     return ret;
   }
 
-  if(alive_child_thread!=NULL)
+  if(alive_child_thread==NULL)
     return -1;
 
   current_thread->waiting_tid = child_tid;
@@ -143,12 +143,9 @@ process_exit (void)
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
-  printf ("%s: exit(%d)\n", cur->name,cur->exit_status);
-  pd = cur->pagedir;
+  printf ("%s: exit(%d)\n", current_thread->name,current_thread->exit_status);
+  pd = current_thread->pagedir;
   
-  if (current_thread->parent->waiting_tid == current_thread->tid){
-    sema_up(&current_thread->parent->waiting_sema);
-  }
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
@@ -158,7 +155,7 @@ process_exit (void)
          directory before destroying the process's page
          directory, or our active page directory will be one
          that's been freed (and cleared). */
-      cur->pagedir = NULL;
+      current_thread->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
