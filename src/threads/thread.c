@@ -189,7 +189,7 @@ thread_create (const char *name, int priority,
   kf->function = function;
   kf->aux = aux;
 
-  list_push_back (&running_thread()->children_list, &t->child_elem);
+  list_push_back (&running_thread()->alive_children_list, &t->alive_child_elem);
 
   /* Stack frame for switch_entry(). */
   ef = alloc_frame (t, sizeof *ef);
@@ -283,10 +283,7 @@ void
 thread_exit (void) 
 {
   ASSERT (!intr_context ());
-  struct thread* current_thread=thread_current();
-  if (current_thread->parent->child_waiting != NULL && current_thread->parent->child_waiting->tid == current_thread->tid){
-    sema_up(&current_thread->parent->waiting_sema);
-  }
+  
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -469,15 +466,20 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  list_init (&t->children_list);
+  list_init (&t->alive_children_list);
+  list_init (&t->dead_children_list);
   t->parent = running_thread();
-  t->child_waiting=NULL;
+  t->waiting_tid=-1;
   sema_init(&t->waiting_sema,0);
+  t->exit_status=0;
 
   list_init (&t->file_list);
   t->file_open=0;
   t->max_fd=2;
+  t->executable_file=NULL;
 
+  sema_init(&t->child_load,0);
+  t->is_loaded-false;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -600,14 +602,28 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 
 struct thread*
-find_child_thread(tid_t child_tid)
+find_alive_child_thread(tid_t child_tid)
 {
-  struct list *list=&thread_current()->children_list;
-  struct list_elem *tmp = list_begin (list);
+  struct list *list=&thread_current()->alive_children_list;
+  struct list_elem *tmp ;
 
   for (tmp = list_begin (list);tmp != list_end (list);tmp = list_next (tmp)){
-    if(list_entry (tmp, struct thread, child_elem)->tid == child_tid){
-      return list_entry (tmp, struct thread, child_elem);
+    if(list_entry (tmp, struct thread, alive_child_elem)->tid == child_tid){
+      return list_entry (tmp, struct thread, alive_child_elem);
+    }
+  }
+
+  return NULL;
+}
+struct thread_exit_status*
+find_dead_child_thread(tid_t child_tid)
+{
+  struct list *list=&thread_current()->dead_children_list;
+  struct list_elem *tmp ;
+
+  for (tmp = list_begin (list);tmp != list_end (list);tmp = list_next (tmp)){
+    if(list_entry (tmp, struct thread_exit_status, child_elem)->tid == child_tid){
+      return list_entry (tmp, struct thread_exit_status, child_elem);
     }
   }
 

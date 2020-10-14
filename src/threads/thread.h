@@ -99,23 +99,31 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 #endif
     struct thread* parent;
-    struct thread* child_waiting;
-    struct semaphore waiting_sema;
-    struct list_elem child_elem;
-    struct list children_list;
+    struct list_elem alive_child_elem;
+    struct list alive_children_list;
+    struct list dead_children_list;
     int exit_status;
+
+    tid_t waiting_tid;
+    struct semaphore waiting_sema;
 
     int file_open;
     int max_fd;
     struct list file_list;
     struct file* executable_file;
 
-
-
+    struct semaphore child_load;
+    bool is_loaded;
+    
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+struct thread_exit_status{
+   tid_t tid;
+   struct list_elem child_elem;
+   int exit_status;
 
+};
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
@@ -152,6 +160,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-struct thread* find_child_thread(tid_t child_tid);
+struct thread* find_alive_child_thread(tid_t child_tid);
+struct thread* find_dead_child_thread(tid_t child_tid);
 
 #endif /* threads/thread.h */

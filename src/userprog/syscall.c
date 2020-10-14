@@ -3,6 +3,7 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/malloc.h"
 #include "threads/vaddr.h"
 #include "userprog/process.h"
 #include "filesys/file.h"
@@ -77,17 +78,38 @@ syscall_handler (struct intr_frame *f)
 
 void exit (int status){
   struct thread *current_thread=thread_current ();
-  struct list_elem *l;
+  struct list_elem *tmp;
+  struct thread_exit_status *tes;
 
   if(lock_held_by_current_thread(&file_lock))
     lock_release(&file_lock);
 
-  while (!list_empty (&current_thread->file_list)){
-    l = list_begin (&current_thread->file_list);
-    close (list_entry (l, struct process_file,elem)->fd);
-  }
+  for (tmp = list_begin (&current_thread->file_list); tmp != list_end (&current_thread->file_list); tmp = list_next (tmp))
+    close (list_entry (tmp, struct process_file,elem)->fd);
+
+  
+  file_close(current_thread->executable_file);
+  current_thread->executable_file=NULL;
 
   current_thread->exit_status = status;
+
+  if(current_thread->parent!=NULL){
+    struct thread_exit_status* cur_exit_status=(struct thread_exit_status*)malloc(sizeof(struct thread_exit_status));
+    cur_exit_status->tid=current_thread->tid;
+    cur_exit_status->exit_status=status;
+    list_push_back(&current_thread->parent->dead_children_list,&cur_exit_status->child_elem);
+  }
+  list_remove(&current_thread->alive_child_elem);
+
+  for (tmp = list_begin (&current_thread->alive_children_list); tmp != list_end (&current_thread->alive_children_list); tmp = list_next (tmp)){
+    list_entry (tmp, struct thread,alive_child_elem)->parent=NULL;
+  }
+  for (tmp = list_begin (&current_thread->dead_children_list); tmp != list_end (&current_thread->dead_children_list); tmp = list_next (tmp)){
+    tes=list_entry (tmp, struct thread_exit_status,child_elem);
+    free(tes);
+  }
+
+
   thread_exit ();
 }
 
@@ -235,16 +257,13 @@ void syscall_wait (struct intr_frame* f){
 }
 
 void syscall_create (struct intr_frame* f){
-  //printf("--------start syscall_creat--------\n");
   if(!is_valid_buffer(f->esp+4,8)){
     exit(-1);
   }
-  //printf("--------esp valid--------\n");
   char* file_name = *(char **)(f->esp+4);
   if(file_name==NULL || !is_valid_addr(file_name) || !is_valid_string(file_name)){
     exit(-1);
   }
-  //printf("--------file_name valid--------\n");
   unsigned size = *(int *)(f->esp+8);
   lock_acquire(&file_lock);
   f->eax = create(file_name,size);
@@ -390,6 +409,8 @@ is_valid_string(void *str){
   int ch=-1;
   char* tmp=str;
   while(1){
+    if(!is_valid_addr(tmp))
+      return false;
     ch=get_user((uint8_t*)tmp);
     if(ch==-1||ch=='\0')
       break;

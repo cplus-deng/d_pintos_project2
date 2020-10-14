@@ -28,6 +28,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
+  struct thread *current_thread = thread_current();
   char *fn_copy;
   tid_t tid;
 
@@ -46,6 +47,11 @@ process_execute (const char *file_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+  else{
+    sema_down(&current_thread->child_load);
+    if (current_thread->is_loaded==false)
+      return -1;  
+  }
   return tid;
 }
 
@@ -54,6 +60,7 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
+  struct thread *current_thread = thread_current();
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -67,8 +74,13 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success) {
+    current_thread->parent->is_loaded=false;
+    sema_up(&current_thread->parent->child_load);
     exit(-1);
+  }
+  current_thread->parent->is_loaded=true;
+  sema_up(&current_thread->parent->child_load);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -94,18 +106,24 @@ process_wait (tid_t child_tid)
 {
   struct thread *current_thread = thread_current ();
   enum intr_level old_level = intr_disable();
-  struct thread *child_thread= find_child_thread(child_tid);
+  struct thread_exit_status *dead_thread=find_dead_child_thread(child_tid);
+  struct thread *alive_child_thread= find_alive_child_thread(child_tid);
   intr_set_level (old_level);
+
+  if(dead_thread!=NULL){
+    list_remove(&dead_thread->child_elem);
+    return ;
+  }
 
   if(!child_thread)
     return -1;
 
-  current_thread->child_waiting = child_thread;
-  //current_thread->waiting_child = ch;
-
-  sema_down(&current_thread->waiting_sema);
+  current_thread->waiting_tid = child_tid;
 
   list_remove(&child_thread->child_elem);
+  sema_down(&current_thread->waiting_sema);
+
+  
 
   return child_thread->exit_status;
 }
@@ -121,8 +139,10 @@ process_exit (void)
      to the kernel-only page directory. */
   printf ("%s: exit(%d)\n", cur->name,cur->exit_status);
   pd = cur->pagedir;
-  file_allow_write(cur->executable_file);
-  file_close(cur->executable_file);
+  
+  if (current_thread->parent->waiting_tid == current_thread->tid){
+    sema_up(&current_thread->parent->waiting_sema);
+  }
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
