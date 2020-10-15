@@ -12,7 +12,6 @@
 #include "threads/synch.h"
 
 static void syscall_handler (struct intr_frame *);
-struct lock file_lock;
 
 void
 syscall_init (void) 
@@ -80,16 +79,19 @@ void exit (int status){
   struct thread *current_thread=thread_current ();
   struct list_elem *tmp;
   struct thread_exit_status *tes;
-
+  
   if(lock_held_by_current_thread(&file_lock))
     lock_release(&file_lock);
   
   for (tmp = list_begin (&current_thread->file_list); tmp != list_end (&current_thread->file_list); tmp = list_begin (&current_thread->file_list))
     close (list_entry (tmp, struct process_file,elem)->fd);
-  if(current_thread->executable_file!=NULL)
+  if(current_thread->executable_file!=NULL){
     file_close(current_thread->executable_file);
-  current_thread->executable_file=NULL;
-
+    current_thread->executable_file=NULL;
+  }
+    
+  
+  
   current_thread->exit_status = status;
   
   if(current_thread->parent!=NULL){
@@ -103,8 +105,9 @@ void exit (int status){
   for (tmp = list_begin (&current_thread->alive_children_list); tmp != list_end (&current_thread->alive_children_list); tmp = list_next (tmp)){
     list_entry (tmp, struct thread,alive_child_elem)->parent=NULL;
   }
-  for (tmp = list_begin (&current_thread->dead_children_list); tmp != list_end (&current_thread->dead_children_list); tmp = list_next (tmp)){
+  for (tmp = list_begin (&current_thread->dead_children_list); tmp != list_end (&current_thread->dead_children_list); tmp = list_begin (&current_thread->dead_children_list)){
     tes=list_entry (tmp, struct thread_exit_status,child_elem);
+    list_remove(&tes->child_elem);
     free(tes);
   }
   

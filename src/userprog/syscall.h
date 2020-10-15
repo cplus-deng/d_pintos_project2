@@ -29,6 +29,9 @@ struct process_file{
     struct list_elem elem;
 };
 
+struct lock file_lock;
+
+
 void syscall_init (void);
 
 void exit (int status);

@@ -40,15 +40,22 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   //extract true file_name without argv
+  char *real_file_name = malloc(strlen(file_name) + 1);
+  if(real_file_name==NULL)
+    return -1;
+  strlcpy(real_file_name, file_name, strlen(file_name) + 1);
   char *save_ptr;
-  file_name = strtok_r (file_name, " ", &save_ptr);
+  real_file_name = strtok_r(real_file_name, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (real_file_name, PRI_DEFAULT, start_process, fn_copy);
+  free(real_file_name);
+
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   else{
     sema_down(&current_thread->child_load);
+    
     if (current_thread->is_loaded==false)
       return -1;  
   }
