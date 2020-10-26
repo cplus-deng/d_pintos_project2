@@ -1,6 +1,7 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/malloc.h"
@@ -248,7 +249,11 @@ void syscall_exec (struct intr_frame* f){
   if(cmd_line==NULL || !is_valid_addr(cmd_line) || !is_valid_string(cmd_line)){
     exit(-1);
   }
-  f->eax = exec(cmd_line);
+  char *new_cmd = (char*)malloc(strlen(cmd_line) + 1);
+  strlcpy(new_cmd, cmd_line, strlen(cmd_line) + 1);
+
+  f->eax = exec(new_cmd);
+  free(new_cmd);
 }
 
 void syscall_wait (struct intr_frame* f){

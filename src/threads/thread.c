@@ -479,7 +479,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->executable_file=NULL;
 
   sema_init(&t->child_load,0);
-  t->is_loaded-false;
+  t->is_loaded=false;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
