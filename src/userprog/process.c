@@ -118,7 +118,6 @@ process_wait (tid_t child_tid)
   struct thread *alive_child_thread= find_alive_child_thread(child_tid);
   intr_set_level (old_level);
 
-//子进程已经终止
   if(dead_thread!=NULL){
     list_remove(&dead_thread->child_elem);
     ret=dead_thread->exit_status;
@@ -129,7 +128,6 @@ process_wait (tid_t child_tid)
   if(alive_child_thread==NULL)
     return -1;
 
-//子进程未终止
   current_thread->waiting_tid = child_tid;
   sema_down(&current_thread->waiting_sema);
 
